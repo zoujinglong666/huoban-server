@@ -55,4 +55,14 @@ public interface UserService extends IService<User> {
     Boolean isAdmin(HttpServletRequest request);
 
     Boolean isAdmin(User loginUser);
+
+
+    /**
+     *
+     * @param num
+     * @param user
+     * @return
+     */
+
+    List<User> matchUsers(long num, User user);
 }

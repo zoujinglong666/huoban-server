@@ -2,6 +2,9 @@ package com.zjl.huoban.exception;
 
 import com.zjl.huoban.common.ErrorCode;
 
+/**
+ * @author zou
+ */
 public class BusinessException extends RuntimeException {
     private final int code;
     private final String description;
@@ -23,4 +26,13 @@ public class BusinessException extends RuntimeException {
         this.code = errorCode.getCode();
         this.description = description;
     }
+
+    public int getCode() {
+        return code;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
 }
