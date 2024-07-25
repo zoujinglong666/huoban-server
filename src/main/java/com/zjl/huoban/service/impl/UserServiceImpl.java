@@ -4,22 +4,23 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.zjl.huoban.Utils.AlgorithmUtils;
 import com.zjl.huoban.common.ErrorCode;
 import com.zjl.huoban.contant.UserContant;
 import com.zjl.huoban.exception.BusinessException;
 import com.zjl.huoban.mapper.UserMapper;
 import com.zjl.huoban.model.User;
+import com.zjl.huoban.model.request.UserResetPasswordRequest;
 import com.zjl.huoban.service.UserService;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.DigestUtils;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,6 +42,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
      * @return
      */
 
+    final String SALT = "ZOU";
 
     @Resource
     private UserMapper userMapper;
@@ -81,8 +83,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
 //		3.加密
 
-        final String SALTC = "ZOU";
-        String encryptPassWord = DigestUtils.md5DigestAsHex((SALTC + userPassword).getBytes());
+        String encryptPassWord = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
 
         User user = new User();
         user.setUserAccount(userAccount);
@@ -115,16 +116,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
 //		3.加密
 
-        final String SALTC = "ZOU";
-        String encryptPassWord = DigestUtils.md5DigestAsHex((SALTC + userPassword).getBytes());
+        String encryptPassWord = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userAccount", userAccount);
         queryWrapper.eq("userPassword", encryptPassWord);
         User user = userMapper.selectOne(queryWrapper);
-        System.out.println(user);
-
         if (user == null) {
-            return null;
+            throw new BusinessException(ErrorCode.NO_AUTH,"密码不正确");
         }
         //用户脱密
         User safetyUser = getSaftyUser(user);
@@ -244,9 +242,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         // todo 补充校验，如果用户没有传任何要更新的值，就直接报错，不用执行 update 语句
         // 如果是管理员，允许更新任意用户
         // 如果不是管理员，只允许更新当前（自己的）信息
-//        if (!isAdmin(loginUser) && userId != loginUser.getId()) {
-//            throw new BusinessException(ErrorCode.NO_AUTH);
-//        }
+        if (!isAdmin(loginUser) && userId != loginUser.getId()) {
+            throw new BusinessException(ErrorCode.NO_AUTH);
+        }
         User oldUser = userMapper.selectById(userId);
         if (oldUser == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
@@ -344,6 +342,65 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 //        }
         return new ArrayList<>();
     }
+
+    @Override
+    public boolean resetPassword( UserResetPasswordRequest userResetPasswordRequest, User loginUser) {
+        // 参数校验
+        if (userResetPasswordRequest == null || loginUser == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        long userId = userResetPasswordRequest.getId();
+        if(userId<=0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+
+
+        String oldPassword = userResetPasswordRequest.getOldPassword();
+        String newPassword = userResetPasswordRequest.getNewPassword();
+        String checkPassword = userResetPasswordRequest.getCheckPassword();
+        if (StringUtils.isAnyBlank(oldPassword, newPassword, checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "输入有误");
+        }
+
+
+        // 密码就不小于8位吧
+        if (oldPassword.length() < 8 || checkPassword.length() < 8 || newPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码小于8位");
+        }
+        // 密码和校验密码相同
+        if (!newPassword.equals(checkPassword)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "输入密码不一致");
+        }
+        if (!isAdmin(loginUser) && loginUser.getId() != userId) {
+            throw new BusinessException(ErrorCode.NO_AUTH, "权限不足");
+        }
+
+
+        String encryptPassword = DigestUtils.md5DigestAsHex((SALT + oldPassword).getBytes(StandardCharsets.UTF_8));
+        QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
+        userQueryWrapper.eq("userAccount", loginUser.getUserAccount());
+        userQueryWrapper.eq("userPassword", encryptPassword);
+        User user = this.getOne(userQueryWrapper);
+        // 用户不存在
+        if (user == null) {
+            log.info("user login failed,userAccount cannot match userPassword");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
+        }
+
+        String newEncryptPassword = DigestUtils.md5DigestAsHex((SALT + newPassword).getBytes(StandardCharsets.UTF_8));
+
+        loginUser.setUserPassword(newEncryptPassword);
+        boolean updated = this.updateById(loginUser);
+
+        if (!updated) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"更新密码失败");
+        }
+
+        return true;
+    }
+
 
 
     /**

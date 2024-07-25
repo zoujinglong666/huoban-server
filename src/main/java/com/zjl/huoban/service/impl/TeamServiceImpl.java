@@ -26,10 +26,7 @@ import org.springframework.util.CollectionUtils;
 
 import javax.annotation.Resource;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 
@@ -148,12 +145,12 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
                 queryWrapper.eq("userId", userId);
             }
 
-            if (status == null) {
-                status = 0;
-            }
-
-
-            queryWrapper.eq("status", status);
+//            if (status == null) {
+//                status = 0;
+//            }
+//
+//
+//            queryWrapper.eq("status", status);
 
         }
         queryWrapper.and(qw -> qw.gt("expireTime", new Date()).or().isNull("expireTime"));
@@ -179,7 +176,7 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
             TeamUserVo teamUserVo = new TeamUserVo();
             BeanUtil.copyProperties(team, teamUserVo);
             UserVo userVo = new UserVo();
-            BeanUtil.copyProperties(user, userVo);
+            BeanUtil.copyProperties(saftyUser, userVo);
             teamUserVo.setCreateUser(userVo);
             teamUserVoList.add(teamUserVo);
         }
@@ -275,7 +272,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team> implements Te
 
         // Check if the team requires a password
         String password = teamJoinRequest.getPassword();
-        if (TeamStatusEnum.SECRET.equals(teamStatus) && StringUtils.isBlank(password)) {
+        String teamPassword = team.getPassword();
+
+        if (TeamStatusEnum.SECRET.equals(teamStatus) && !Objects.equals(password, teamPassword)) {
             throw new BusinessException(ErrorCode.NULL_ERROR, "密码错误");
         }
 

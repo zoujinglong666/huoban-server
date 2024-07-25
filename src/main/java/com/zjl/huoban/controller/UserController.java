@@ -9,6 +9,7 @@ import com.zjl.huoban.exception.BusinessException;
 import com.zjl.huoban.model.User;
 import com.zjl.huoban.model.request.UserLoginRequest;
 import com.zjl.huoban.model.request.UserRegisterRequest;
+import com.zjl.huoban.model.request.UserResetPasswordRequest;
 import com.zjl.huoban.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -64,7 +66,6 @@ public class UserController {
         String userAccount = userLoginRequest.getUserAccount();
         String userPassword = userLoginRequest.getUserPassword();
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
-
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = userService.doLogin(userAccount, userPassword, request);
@@ -195,6 +196,19 @@ public class UserController {
          List<User> userList= userService.matchUsers(num, user);
         return ResultUtils.success(userList);
     }
+
+    @PostMapping("/reset/password")
+    public BaseResponse<Boolean> resetPassword(@RequestBody UserResetPasswordRequest userResetPasswordRequest,HttpServletRequest request) {
+
+        if(userResetPasswordRequest==null){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = userService.getLoginUser(request);
+        boolean res = userService.resetPassword(userResetPasswordRequest,loginUser);
+        return ResultUtils.success(res);
+
+    }
+
 
 
 

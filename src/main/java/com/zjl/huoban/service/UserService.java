@@ -2,6 +2,7 @@ package com.zjl.huoban.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.zjl.huoban.model.User;
+import com.zjl.huoban.model.request.UserResetPasswordRequest;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -65,4 +66,6 @@ public interface UserService extends IService<User> {
      */
 
     List<User> matchUsers(long num, User user);
+
+    boolean resetPassword(UserResetPasswordRequest userResetPasswordRequest, User loginUser);
 }
