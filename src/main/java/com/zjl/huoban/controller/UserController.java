@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -125,24 +126,36 @@ public class UserController {
     public BaseResponse<Page<User>> recommendedUsers(@RequestParam(defaultValue = "10") long pageSize, @RequestParam(defaultValue = "1") long pageNum, HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
         String redisKey = String.format("huoban:user:recommendedUsers:%s", loginUser.getId());
-        Page<User> userPage = (Page<User>) redisTemplate.opsForValue().get(redisKey);
-        if (userPage != null) {
-            System.out.println("缓存");
+
+        // Get user IDs from Redis List
+        List<Object> userIds = redisTemplate.opsForList().range(redisKey, (pageNum - 1) * pageSize, pageNum * pageSize - 1);
+        if (userIds == null || userIds.isEmpty()) {
+            // Fetch from database if Redis does not have data
+            QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+            Page<User> userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
+
+            // Save user IDs and data to Redis
+            userPage.getRecords().forEach(user -> {
+                redisTemplate.opsForList().rightPush(redisKey, user.getId());
+                redisTemplate.opsForHash().put(redisKey + ":data", user.getId(), user);
+            });
+
             return ResultUtils.success(userPage);
         }
 
+        // Fetch user data from Redis
+        List<User> users = new ArrayList<>();
+        userIds.forEach(userId -> {
+            User user = (User) redisTemplate.opsForHash().get(redisKey + ":data", userId);
+            users.add(user);
+        });
 
-        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-        userPage = userService.page(new Page<>(pageNum, pageSize), queryWrapper);
+        Page<User> userPage = new Page<>(pageNum, pageSize, userIds.size());
+        userPage.setRecords(users);
 
-
-        try {
-            redisTemplate.opsForValue().set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            log.error(String.valueOf(e));
-        }
         return ResultUtils.success(userPage);
     }
+
 
     @GetMapping("search/tags")
     public BaseResponse<List<User>> getUserListByTags(@RequestParam(required = false) List<String> tagList) {
