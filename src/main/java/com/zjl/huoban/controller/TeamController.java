@@ -1,7 +1,6 @@
 package com.zjl.huoban.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.zjl.huoban.common.BaseResponse;
 import com.zjl.huoban.common.ErrorCode;
 import com.zjl.huoban.common.ResultUtils;
@@ -104,8 +103,9 @@ public class TeamController {
     }
 
 
+
     @GetMapping("/list")
-    public BaseResponse<List<TeamUserVo>> listTeams(TeamQueryRequest teamQueryRequest,HttpServletRequest request) {
+    public BaseResponse<List<TeamUserVo>> listTeams(TeamQueryRequest teamQueryRequest, HttpServletRequest request) {
 
         if (teamQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -113,6 +113,12 @@ public class TeamController {
         // 1、查询队伍列表
         List<TeamUserVo> teamList = teamService.listTeams(teamQueryRequest);
         final List<Long> teamIdList = teamList.stream().map(TeamUserVo::getId).collect(Collectors.toList());
+
+        // 确保 teamIdList 不为空
+        if (teamIdList.isEmpty()) {
+            return ResultUtils.success(teamList);
+        }
+
         // 2、判断当前用户是否已加入队伍
         QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
         try {
@@ -128,6 +134,7 @@ public class TeamController {
             });
         } catch (Exception ignored) {
         }
+
         // 3、查询已加入队伍的人数
         QueryWrapper<UserTeam> userTeamJoinQueryWrapper = new QueryWrapper<>();
         userTeamJoinQueryWrapper.in("teamId", teamIdList);
@@ -135,10 +142,10 @@ public class TeamController {
         // 队伍 id => 加入这个队伍的用户列表
         Map<Long, List<UserTeam>> teamIdUserTeamList = userTeamList.stream().collect(Collectors.groupingBy(UserTeam::getTeamId));
         teamList.forEach(team -> team.setHasJoinNum(teamIdUserTeamList.getOrDefault(team.getId(), new ArrayList<>()).size()));
+
         return ResultUtils.success(teamList);
-
-
     }
+
 
     @GetMapping("/list/my/create")
     public BaseResponse<List<TeamUserVo>> listMyCreateTeams(TeamQueryRequest teamQueryRequest,HttpServletRequest request) {
